@@ -1,14 +1,21 @@
 #!/usr/bin/python
 # coding: utf-8
-
-from sqlalchemy import or_, and_, select, func
-from sqlalchemy.orm import mapper, relationship, column_property, object_session, deferred, outerjoin
+from sqlalchemy import or_,\
+                       and_,\
+                       select,\
+                       func
+from sqlalchemy.orm import mapper,\
+                           relationship,\
+                           column_property,\
+                           object_session,\
+                           deferred,\
+                           outerjoin
 from sqlalchemy.ext.hybrid import hybrid_property
 from mako.template import Template
+
 from core.common import ascii_convert_unicode as _u
 from core.func import int2datetime, datetime2int, ip2num, num2ip
 from core.hash import random_string, random_token, hash_password
-import pdb
 
 try: 
     from schema import *
@@ -330,8 +337,8 @@ class UserEvent(BaseModel):
     def set_message(self, msg, **kw):
         self.message = repr((msg, kw))
 
-class GameCategory(BaseModel):
-    __table_name__ = game_category.name
+class GameTaxonomy(BaseModel):
+    __table_name__ = game_taxonomy.name
 
     def get_games(self, start=0, offset=0):
         return object_session(self).query(GameDetail)\
@@ -340,20 +347,11 @@ class GameCategory(BaseModel):
 class GamePlatform(BaseModel): 
     __table_name__ = game_platform.name
 
-    def get_game_category(self):
-        return map(
-            lambda obj: (obj.id, obj.name),
-            self.game_categories,
-        )
-
 class GameDetail(AbstractTagModel, BaseModel): 
     __table_name__ = game_detail.name
 
 class GameContent(BaseModel): 
     __table_name__ = game_content.name
-
-class GameInfomation(BaseModel): 
-    __table_name__ = game_infomation.name
 
 class GameMark(BaseModel): 
     __table_name__ = game_mark.name
@@ -431,23 +429,6 @@ mapper(UserBase, user_base, properties={
         backref='user_base', 
         order_by=user_relation.c._created.desc(),
     ),
-
-    'count_follow': column_property(
-        select([func.count(user_relation.c.id)],
-            and_(user_base.c.id==user_relation.c.user_id, user_relation.c.type==0)
-        ) 
-    ),
-    'count_fans': column_property(
-        select([func.count(user_relation.c.id)],
-            and_(user_base.c.id==user_relation.c.user_id, user_relation.c.type==1)
-        )
-    ),
-    'all_follows': relationship(UserRelation, primaryjoin=and_(\
-        user_base.c.id==user_relation.c.user_id, user_relation.c.type==0\
-    ), order_by=user_relation.c._created.desc()),
-    'all_fans': relationship(UserRelation, primaryjoin=and_(\
-        user_base.c.id==user_relation.c.user_id, user_relation.c.type==1\
-    ), order_by=user_relation.c._created.desc()),
 })
 
 mapper(UserProfile, user_profile, properties={
@@ -477,9 +458,9 @@ mapper(UserAlbum, user_album)
 mapper(UserImage, user_image)
 mapper(UserEvent, user_event)
 
-mapper(GameCategory, game_category, properties={
+mapper(GameTaxonomy, game_taxonomy, properties={
     'game_details': relationship(GameDetail, 
-        backref='game_category', order_by=game_detail.c.id,
+        backref='game_taxonomy', order_by=game_detail.c.id,
     ),
 })
 
@@ -488,28 +469,20 @@ mapper(GamePlatform, game_platform)
 mapper(GameContent, game_content)
 
 mapper(GameDetail, game_detail, properties={
-    'game_platforms': relationship(GamePlatform,
-        secondary=game_infomation,
-        backref='game_detail',
-    ),
-    'game_infomations': relationship(GameInfomation,
-        backref='game_detail', order_by=game_infomation.c.id, 
-    ),
     'game_content': relationship(GameContent, 
         uselist=False, backref='game_detail',
     ),
     'game_marks': relationship(GameMark,
         backref='game_detail', order_by=game_mark.c.id,
     ),
-    'catgory': deferred(
-        select([game_category.c.name]).where(game_category.c.id==game_detail.c.category_id),
+    'genre': deferred(
+        select([game_taxonomy.c.name]).where(game_taxonomy.c.id==game_detail.c.genre_id),
     ),
     'content': deferred(
         select([game_content.c.content]).where(game_content.c.game_id==game_detail.c.id),
     ),
 })
 
-mapper(GameInfomation, game_infomation)
 mapper(GameMark, game_mark)
 
 mapper(GroupDetail, group_detail)

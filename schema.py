@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # coding: utf-8
-
 from sqlalchemy import Table, Column, MetaData, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.mysql import INTEGER, TINYINT, VARCHAR, BOOLEAN, TEXT, DECIMAL
@@ -9,8 +8,6 @@ metadata    = MetaData()
 
 user_base = Table('user_base', metadata, 
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('email', VARCHAR(128), unique=True, nullable=False),
     Column('username', VARCHAR(32), unique=True, nullable=False),
     Column('password', VARCHAR(64), nullable=False),
@@ -23,19 +20,19 @@ user_base = Table('user_base', metadata,
     Column('root', BOOLEAN, nullable=False, default=0),
     Column('_last_login', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_login_addr', INTEGER(unsigned=True), nullable=False),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 user_profile = Table('user_profile', metadata, 
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('thumb', VARCHAR(64)),
-    Column('nickname', VARCHAR(16)), 
-    Column('gender', TINYINT(unsigned=True), nullable=False, default=2),
-    Column('_birthday', INTEGER(unsigned=True)),
+    Column('thumb_id', INTEGER(unsigned=True), ForeignKey('user_image.id')),    # User Image ID
+    Column('nickname', VARCHAR(16)),    # User Nickname
+    Column('gender', TINYINT(unsigned=True), nullable=False, default=2),    # Gender
+    Column('_birthday', INTEGER(unsigned=True)), 
     Column('first_name', VARCHAR(32)) ,
     Column('last_name', VARCHAR(32)),
     Column('cellphone', VARCHAR(16)),
@@ -44,88 +41,115 @@ user_profile = Table('user_profile', metadata,
     Column('city', VARCHAR(256)),
     Column('address', VARCHAR(256)), 
     Column('website', VARCHAR(256)),
-    Column('introduction', VARCHAR(256)),
+    Column('excerpt', VARCHAR(256)),    # short intro
+    Column('intro', TEXT),       # long intro
+
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 user_relation = Table('user_relation', metadata, 
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
     Column('target_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('type', BOOLEAN, nullable=False, default=True),
-    UniqueConstraint('user_id', 'target_id', 'type'),
+    Column('reverse', BOOLEAN, nullable=False, default=True),   # user_id is followed
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
+    UniqueConstraint('user_id', 'target_id', 'reverse'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 user_friendtag = Table('user_friendtag', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('name', VARCHAR(32), nullable=False, index=True),
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('name', VARCHAR(32), nullable=False, index=True),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 user_friendsgroup = Table('user_friendsgroup', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
+    Column('target_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
+    Column('friendtag_id', INTEGER(unsigned=True), ForeignKey('user_friendtag.id'), nullable=False),
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('friendtag_id', INTEGER(unsigned=True), ForeignKey('user_friendtag.id'), nullable=False),
-    Column('friend_id', INTEGER(unsigned=True), ForeignKey('user_profile.user_id'), nullable=False),
+    UniqueConstraint('user_id', 'target_id'),
+    mysql_engine        = 'InnoDB',
+    mysql_charset       = 'utf8',
+)
+
+user_mail = Table('user_mail', metadata,
+    Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),  # People who get mail
+    Column('message_id', INTEGER(unsigned=True), ForeignKey('user_message.id'), nullable=False),
+    Column('read', BOOLEAN, nullable=False, default=0),
+    Column('delete', BOOLEAN, nullable=False, default=0),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
+    UniqueConstraint('user_id', 'message_id'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 user_message = Table('user_message', metadata, 
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('init', BOOLEAN, nullable=False, default=0),
+    Column('draft', BOOLEAN, nullable=False, default=0),
+
+    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
+    Column('headline', VARCHAR(256), nullable=False),
+    Column('content', TEXT),
+
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('target_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('read', BOOLEAN, nullable=False, default=0),
-    Column('title', VARCHAR(32), nullable=False),
-    Column('content', TEXT, nullable=False),
-    UniqueConstraint('user_id', 'target_id'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 user_album = Table('user_album', metadata, 
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
+    Column('headline', VARCHAR(256), nullable=False),
+    Column('intro', TEXT),
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('name', VARCHAR(32), nullable=False),
-    Column('excerpt', VARCHAR(256)),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 user_image = Table('user_image', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('icon', BOOLEAN, nullable=False, default=0),          # icon or picture
+
+    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
+    Column('servname', VARCHAR(32), nullable=False, unique=True),   # filename without suffix
+    Column('filetype', VARCHAR(8), nullable=False),                 # filetype as suffix
+    Column('basename', VARCHAR(64), nullable=False),                # file native name
+    Column('filesize', INTEGER(unsigned=True)),                     # capacity
+    Column('width', INTEGER(unsigned=True)),                        # width
+    Column('height', INTEGER(unsigned=True)),                       # height
+
+    Column('like', TEXT),                                           # list of people who likes
+
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('servname', VARCHAR(32), nullable=False, unique=True),
-    Column('basename', VARCHAR(64), nullable=False),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 user_album_image = Table('user_album_image', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('album_id', INTEGER(unsigned=True), ForeignKey('user_album.id'), nullable=False),
     Column('image_id', INTEGER(unsigned=True), ForeignKey('user_image.id'), nullable=False),
     Column('alias', VARCHAR(32)),
-    Column('description', TEXT),
+    Column('intro', TEXT),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     UniqueConstraint('album_id', 'image_id'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
@@ -133,241 +157,293 @@ user_album_image = Table('user_album_image', metadata,
 
 user_event = Table('user_event', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('show', BOOLEAN, nullable=False, default=0), # show this event
     Column('object_type_id', TINYINT(unsigned=True), nullable=False),
     Column('object_pk', INTEGER(unsigned=True), nullable=False),
-    Column('message', VARCHAR(256)), #TEXT
+    Column('hide', BOOLEAN, nullable=False, default=0),
+    Column('message', TEXT),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 news_category = Table('news_category', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('name', VARCHAR(16), nullable=False, unique=True),
     Column('segment', VARCHAR(128), nullable=False, unique=True), 
     Column('sort', INTEGER, nullable=False, default=0),
-    Column('description', TEXT),
+    Column('summary', VARCHAR(512)),
+    Column('intro', TEXT),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 news_detail = Table('news_detail', metadata, 
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('init', BOOLEAN, nullable=False, default=0),
+    Column('enable_publish', BOOLEAN, nullable=False, default=0),
+
+    Column('category_id', INTEGER(unsigned=True), ForeignKey('news_category.id'), nullable=False),
+    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
+
+    Column('headline', VARCHAR(256)),
+    Column('thumb_id', INTEGER(unsigned=True), ForeignKey('user_image.id')),
+    Column('summary', VARCHAR(512)),
+
+    Column('enable_anonymous', BOOLEAN, nullable=False, default=0),
+    Column('enable_comment', BOOLEAN, nullable=False, default=1),
+
+    Column('count_visit', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_comment', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_like', INTEGER(unsigned=True), nullable=False, default=0),
+
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('author_id', INTEGER(unsigned=True), ForeignKey('user_profile.user_id'), nullable=False),
-    Column('author', VARCHAR(32)), # user_profile.nickname
-    Column('category_id', INTEGER(unsigned=True), ForeignKey('news_category.id'), nullable=False),
-    Column('headline', VARCHAR(64), nullable=False, index=True),
-    Column('published', BOOLEAN, nullable=False, default=0),
-    Column('enable_comment', BOOLEAN, nullable=False, default=1),
-    Column('publication_data', INTEGER(unsigned=True)),
-    Column('thumb', VARCHAR(64)),
-    Column('excerpt', VARCHAR(256)),
-    Column('visits', INTEGER(unsigned=True), nullable=False, default=1),
-    Column('comments', INTEGER(unsigned=True), nullable=False, default=0),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 news_content = Table('news_content', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('news_id', INTEGER(unsigned=True), ForeignKey('news_detail.id'), nullable=False),
-    Column('content', TEXT, nullable=False),
+    Column('content', TEXT),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
-
-game_category = Table('game_category', metadata,
+game_taxonomy = Table('game_taxonomy', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('name', VARCHAR(16), nullable=False, unique=True),
-    Column('segment', VARCHAR(128), nullable=False, unique=True), 
+    Column('is_genre', BOOLEAN, nullable=False, default=0),
+    Column('name', VARCHAR(32), nullable=False),
+    Column('segment', VARCHAR(128), nullable=False), 
     Column('sort', INTEGER, nullable=False, default=0),
-    Column('description', TEXT),
-    mysql_engine        = 'InnoDB',
-    mysql_charset       = 'utf8',
-)
-
-game_platform = Table('game_platform', metadata,
-    Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('name', VARCHAR(32), nullable=False, unique=True),
-    Column('segment', VARCHAR(128), nullable=False, unique=True), 
     Column('alias', VARCHAR(64)),
-    Column('sort', INTEGER, nullable=False, default=0),
-    Column('description', TEXT),
+    Column('summary', VARCHAR(512)),
+    Column('intro', TEXT),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
+    UniqueConstraint('is_genre', 'segment'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 game_detail = Table('game_detail', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('init', BOOLEAN, nullable=False, default=0),
+    Column('enable_publish', BOOLEAN, nullable=False, default=0),
+
+    Column('genre_id', INTEGER(unsigned=True), ForeignKey('game_taxonomy.id'), nullable=False),
+    Column('headline', VARCHAR(256), nullable=False),
+    Column('thumb_id', INTEGER(unsigned=True), ForeignKey('user_image.id')),
+    Column('alias', VARCHAR(256)),
+    Column('developer', VARCHAR(256)),
+    Column('developer_site', VARCHAR(128)),
+    Column('publisher', VARCHAR(256)),
+    Column('publisher_site', VARCHAR(128)),
+    Column('release_date', INTEGER(unsigned=True), nullable=False, default=0),
+
+    Column('summary', VARCHAR(512)),
+
+    Column('count_score', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_critic', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_mark', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_like', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_play', INTEGER(unsigned=True), nullable=False, default=0),
+
+    Column('count_visit', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_comment', INTEGER(unsigned=True), nullable=False, default=0),
+
+    Column('total_score', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('total_graph', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('total_control', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('total_opera', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('total_music', INTEGER(unsigned=True), nullable=False, default=0),
+
+    Column('latest_version', VARCHAR(32)),
+
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('category_id', INTEGER(unsigned=True), ForeignKey('game_category.id'), nullable=False),
-    Column('author_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('name', VARCHAR(128), nullable=False), # X
-    Column('alias', VARCHAR(128)),
-    Column('published', BOOLEAN, nullable=False, default=0),
-    Column('publication_date', INTEGER(unsigned=True)),
-    Column('thumb', VARCHAR(64)),
-    Column('excerpt', VARCHAR(256)),
-    Column('developer', VARCHAR(128)),
-    Column('developer_site', VARCHAR(256)),
-    # count how many people interest/playing/played
-    # x #
-    Column('interest', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('playing', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('played', INTEGER(unsigned=True), nullable=False, default=0),
-    # count how many peopler evaluation this game, and total scores
-    Column('counter', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('graph', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('control', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('ploy', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('opera', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('music', INTEGER(unsigned=True), nullable=False, default=0),
-    # x #
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 game_content = Table('game_content', metadata, 
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('game_id', INTEGER(unsigned=True), ForeignKey('game_detail.id'), nullable=False),
     Column('content', TEXT),
+    Column('change_log', TEXT),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
-game_infomation = Table('game_infomation', metadata,
+game_genre = Table('game_genre', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('game_id', INTEGER(unsigned=True), ForeignKey('game_detail.id'), nullable=False),
+    Column('genre_id', INTEGER(unsigned=True), ForeignKey('game_taxonomy.id'), nullable=False),
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('platform_id', INTEGER(unsigned=True), ForeignKey('game_platform.id'), nullable=False),
+    UniqueConstraint('game_id', 'genre_id'),
+    mysql_engine        = 'InnoDB',
+    mysql_charset       = 'utf8',
+)
+
+game_platform = Table('game_platform', metadata,
+    Column('id', INTEGER(unsigned=True), primary_key=True),
     Column('game_id', INTEGER(unsigned=True), ForeignKey('game_detail.id'), nullable=False),
-    Column('currency_cny', DECIMAL(precision=8, scale=2), nullable=False, default=0),
-    Column('currency_usd', DECIMAL(precision=8, scale=2), nullable=False, default=0),
+    Column('platform_id', INTEGER(unsigned=True), ForeignKey('game_taxonomy.id'), nullable=False),
+    Column('price_cny', DECIMAL(precision=8, scale=2), nullable=False, default=0),
+    Column('price_usd', DECIMAL(precision=8, scale=2), nullable=False, default=0),
     Column('discount', TINYINT(unsigned=True), nullable=False, index=True, default=100),
-    Column('market_url', VARCHAR(256), nullable=False),
-    Column('system_require', VARCHAR(64)), # TINYTEXT
-    Column('capacity', INTEGER(unsigned=True)),
-    Column('language', VARCHAR(32)),
-    Column('version', VARCHAR(32)),
-    Column('_upgrade', INTEGER(unsigned=True)), #
-    Column('roles', TEXT), # x
-    Column('downloads', TEXT), # str([(DownloadSiteName, DownloadURL),])
-    Column('log', TEXT),
-    # count how many people interest/playing/played
-    Column('interest', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('playing', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('played', INTEGER(unsigned=True), nullable=False, default=0),
-    # count how many peopler evaluation this game, and total scores
-    Column('counter', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('graph', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('control', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('ploy', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('opera', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('music', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('capacity', INTEGER(unsigned=True)),     # Game Capacity(M)
+    Column('current_version', VARCHAR(32)),         # Current Platform Game Version(maybe not lastest version)
+    Column('system_version', VARCHAR(1024)),        # System Version Require
+    Column('language', VARCHAR(512)),               # Language Support
+    Column('download_site', VARCHAR(128)),          # Market Download Addr
+    Column('_upgrade', INTEGER(unsigned=True)),     # UNIX TIMESTAMP
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     UniqueConstraint('platform_id', 'game_id'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
-# game mark
-game_mark = Table('game_evaluation', metadata,
+game_review = Table('game_review', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
+    Column('init', BOOLEAN, nullable=False, default=0),
+
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
     Column('game_id', INTEGER(unsigned=True), ForeignKey('game_detail.id'), nullable=False),
-    # game mark
-    Column('mark', BOOLEAN, nullable=False, default=0),
-    Column('interest', BOOLEAN, nullable=False, default=0),
-    Column('playing', BOOLEAN, nullable=False, default=0),
-    Column('played', BOOLEAN, nullable=False, default=0),
-    #Column('start_date', INTEGER(unsigned=True)), # start play (&2)
-    #Column('deadline', INTEGER(unsigned=True)), # end play (&2)
-    # game score
-    Column('score', BOOLEAN, nullable=False, default=0),
+
+    Column('count_visit', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_comment', INTEGER(unsigned=True), nullable=False, default=0), 
+
     Column('graph', TINYINT(unsigned=True), nullable=False, default=0),
     Column('control', TINYINT(unsigned=True), nullable=False, default=0),
-    Column('ploy', TINYINT(unsigned=True), nullable=False, default=0),
     Column('opera', TINYINT(unsigned=True), nullable=False, default=0),
     Column('music', TINYINT(unsigned=True), nullable=False, default=0),
-    # game evaluation content
-    Column('commented', BOOLEAN, nullable=False, default=0),
+
+    # List of people id, e.p: 1,2,3...
+    Column('agree', TEXT),
+    Column('disagree', TEXT),
+
+    Column('headline', VARCHAR(256)),
     Column('content', TEXT),
-    # how many people agree or disagree this (&2)
-    Column('argee', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('disargee', INTEGER(unsigned=True), nullable=False, default=0),
-    Column('username', VARCHAR(64)),
-    Column('user_thumb', VARCHAR(64)), 
+
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     UniqueConstraint('user_id', 'game_id'),
+    mysql_engine        = 'InnoDB',
+    mysql_charset       = 'utf8',
+)
+
+game_mark = Table('game_evaluation', metadata,
+    Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
+    Column('game_id', INTEGER(unsigned=True), ForeignKey('game_detail.id'), nullable=False),
+
+    Column('mark', INTEGER(unsigned=True), nullable=False, default=0),      # 0=>unmark, unix_timestamp=>mark
+    Column('play', INTEGER(unsigned=True), nullable=False, default=0),      # 0=>unplay, unix_timestamp=>play
+    Column('like', INTEGER(unsigned=True), nullable=False, default=0),      # 0=>unlike, unix_timestamp=>like
+
+    Column('scored', INTEGER(unsigned=True), nullable=False, default=0),    # 0=>unscore, unix_timestamp=>score
+    Column('score', TINYINT(unsigned=True), nullable=False, default=0),
+
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
+    UniqueConstraint('user_id', 'game_id'),
+    mysql_engine        = 'InnoDB',
+    mysql_charset       = 'utf8',
+)
+
+game_guide = Table('game_guide', metadata,
+    Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('init', BOOLEAN, nullable=False, default=0),
+
+    Column('game_id', INTEGER(unsigned=True), ForeignKey('game_detail.id'), nullable=False),
+    Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
+
+    Column('headline', VARCHAR(256)),
+    Column('summary', VARCHAR(512)),
+    Column('content', TEXT),
+
+    Column('agree', TEXT),
+    Column('disagree', TEXT),
+
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
+    mysql_engine        = 'InnoDB',
+    mysql_charset       = 'utf8',
+)
+
+game_image = Table('game_image', metadata,
+    Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('gallery', BOOLEAN, nullable=False, default=0),
+
+    Column('game_id', INTEGER(unsigned=True), ForeignKey('game_detail.id'), nullable=False),
+    Column('image_id', INTEGER(unsigned=True), ForeignKey('user_image.id'), nullable=False),
+
+    Column('gallery_sort', TINYINT, nullable=False, default=0),
+    Column('gallery_headline', VARCHAR(256)),
+    Column('gallery_summary', VARCHAR(512)),
+
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 group_apply = Table('group_apply', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('user_id', INTEGER(unsigned=True), nullable=False),
+    Column('actived', BOOLEAN, nullable=False, default=0),
+    Column('active_code', VARCHAR(32), nullable=False),
+    Column('deal', BOOLEAN, nullable=False, default=0),
+    Column('privacy', BOOLEAN, nullable=False, default=0),
+    Column('headline', VARCHAR(256), nullable=False),
+    Column('remark', VARCHAR(512)),
+    Column('intro', TEXT),
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('applicant', INTEGER(unsigned=True), nullable=False),
-    Column('name', VARCHAR(32), nullable=False),
-    Column('privacy', BOOLEAN, nullable=False, default=0),
-    Column('excerpt', VARCHAR(256), nullable=False),
-    Column('remark', TEXT),
-    Column('actived', BOOLEAN, nullable=False, default=0),
-    Column('deal', BOOLEAN, nullable=False, default=0),
-    Column('active_code', VARCHAR(32)),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 group_detail = Table('group_detail', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('founder_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),   # X
-    Column('allow', BOOLEAN, nullable=False, default=0), # X
-    Column('privacy', BOOLEAN, nullable=False, default=0),
-    Column('name', VARCHAR(32), nullable=False, unique=True),
-    Column('thumb', VARCHAR(256)),
-    Column('excerpt', VARCHAR(256)),
-    #Column('introduction', TEXT),
-    mysql_engine        = 'InnoDB',
-    mysql_charset       = 'utf8',
-)
+    Column('headline', VARCHAR(256), nullable=False, unique=True),
+    Column('thumb_id', INTEGER(unsigned=True), ForeignKey('user_image.id')),
 
-group_game = Table('group_game', metadata,
-    Column('id', INTEGER(unsigned=True), primary_key=True),
+    Column('count_topic', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_member', INTEGER(unsigned=True), nullable=False, default=0),
+
+    Column('enable_applicant_create_topic', BOOLEAN, nullable=False, default=1),
+    Column('enable_people_create_topic', BOOLEAN, nullable=False, default=1),
+    Column('enable_applicant_reply', BOOLEAN, nullable=False, default=1),
+    Column('enable_people_reply', BOOLEAN, nullable=False, default=1),
+
+    Column('summary', VARCHAR(512)),
+    Column('intro', TEXT),
+
     Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
     Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
-    Column('group_id', INTEGER(unsigned=True), ForeignKey('group_detail.id'), nullable=False),
-    Column('game_id', INTEGER(unsigned=True), ForeignKey('game_detail.id'), nullable=False),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 group_member = Table('group_member', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('group_id', INTEGER(unsigned=True), ForeignKey('group_detail.id'), nullable=False),
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('user_type', TINYINT(unsigned=True), nullable=False, default=1),
+    Column('roles', TINYINT(unsigned=True), nullable=False, default=2),     # 0=>founder, 1=>assistant, 2=>member, 3=>applicant
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     UniqueConstraint('group_id', 'user_id'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
@@ -375,48 +451,58 @@ group_member = Table('group_member', metadata,
 
 group_topic = Table('group_topic', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
+    Column('init', BOOLEAN, nullable=False, default=0),
+    Column('hide', BOOLEAN, nullable=False, default=0),
+
     Column('group_id', INTEGER(unsigned=True), ForeignKey('group_detail.id'), nullable=False),
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
-    Column('nickname', VARCHAR(64)),
-    Column('user_thumb', VARCHAR(64)),
-    Column('title', VARCHAR(64), nullable=False),
+
+    Column('enable_top', BOOLEAN, nullable=False, default=0),
+    Column('top_sort', TINYINT, nullable=False, default=0),
+
+    Column('count_reply', INTEGER(unsigned=True), nullable=False, default=0),
+    Column('count_visit', INTEGER(unsigned=True), nullable=False, default=0),
+
+    Column('recently_reply', INTEGER(unsigned=True), nullable=False),   # unix_timestamp, default = created
+    Column('headline', VARCHAR(256)),
+
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
-group_discus = Table('group_discus', metadata,
+group_reply = Table('group_reply', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
     Column('topic_id', INTEGER(unsigned=True), ForeignKey('group_topic.id'), nullable=False),
-    Column('nickname', VARCHAR(62)),
-    Column('user_thumb', VARCHAR(64)), 
-    Column('content', TEXT, nullable=False),
+    Column('hide', BOOLEAN, nullable=False, default=0),
+    Column('is_reply', BOOLEAN, nullable=False, default=0),
+    Column('content', TEXT),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 tag_content = Table('tag_content', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('content', VARCHAR(32), nullable=False, unique=True),
     Column('references', INTEGER(unique=True), default=0),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 tag_mark = Table('tag_mark', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_base.id'), nullable=False),
     Column('object_type_id', INTEGER(unsigned=True), ForeignKey('site_model.id'), nullable=False),
     Column('object_pk', INTEGER(unsigned=True), nullable=False),
     Column('tag_id', INTEGER(unsigned=True), ForeignKey('tag_content.id'), nullable=False),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     UniqueConstraint('user_id', 'object_type_id', 'object_pk', 'tag_id'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
@@ -424,10 +510,10 @@ tag_mark = Table('tag_mark', metadata,
 
 site_model = Table('site_model', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('app_label', VARCHAR(64), nullable=False),
     Column('model', VARCHAR(64), nullable=False),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     UniqueConstraint('app_label', 'model'),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
@@ -435,23 +521,21 @@ site_model = Table('site_model', metadata,
 
 site_seo = Table('site_seo', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('object_type_id', INTEGER(unsigned=True), ForeignKey('site_model.id'), nullable=False),
     Column('object_pk', INTEGER(unsigned=True), nullable=False),
     Column('page_title', VARCHAR(64)),
     Column('page_keyword', VARCHAR(128)),
     Column('page_description', VARCHAR(1024)),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
 
 site_comment = Table('site_comment', metadata,
     Column('id', INTEGER(unsigned=True), primary_key=True),
-    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
-    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     Column('user_id', INTEGER(unsigned=True), ForeignKey('user_profile.user_id')),
-    Column('show', BOOLEAN, nullable=False, default=True),
+    Column('hide', BOOLEAN, nullable=False, default=0),
     Column('object_type_id', INTEGER(unsigned=True), ForeignKey('site_model.id'), nullable=False),
     Column('object_pk', INTEGER(unsigned=True), nullable=False),
     Column('username', VARCHAR(32)),
@@ -460,6 +544,8 @@ site_comment = Table('site_comment', metadata,
     Column('ipaddr', INTEGER(unsigned=True)),
     Column('user_thumb', VARCHAR(64)), # 64
     Column('content', TEXT),
+    Column('_created', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp()),
+    Column('_modified', INTEGER(unsigned=True), nullable=False, default=func.unix_timestamp(), onupdate=func.unix_timestamp()),
     mysql_engine        = 'InnoDB',
     mysql_charset       = 'utf8',
 )
