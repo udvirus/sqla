@@ -2,25 +2,20 @@
 # coding: utf-8
 from sqlalchemy import or_,\
                        and_,\
-                       select,\
-                       func
+                       select
 from sqlalchemy.orm import mapper,\
                            relationship,\
-                           column_property,\
                            object_session,\
                            deferred,\
                            outerjoin
 from sqlalchemy.ext.hybrid import hybrid_property
 from mako.template import Template
 
+from .schema import *
 from core.common import ascii_convert_unicode as _u
 from core.func import int2datetime, datetime2int, ip2num, num2ip
 from core.hash import random_string, random_token, hash_password
 
-try: 
-    from schema import *
-except ImportError: 
-    from sqla.schema import *
 
 class BaseModel(object):
     _object_type_id     = None
@@ -155,52 +150,6 @@ class UserBase(BaseModel):
     def create_root(self):
         self.admin, self.root = 1, 1
 
-    def followed(self, target_id):
-        ''' user has be followed by another '''
-        if object_session(self).query(UserRelation)\
-            .filter(and_(
-                UserRelation.user_id==self.id,
-                UserRelation.target_id==target_id,
-                UserRelation.type==1,
-            )).first():
-            return True
-        return False
-
-    def create_follow(self, target_id):
-        db = object_session(self)
-        db.begin(subtransactions=True)
-        try:
-            tg = db.query(UserProfile)\
-                .filter(UserProfile.user_id==target_id).first()
-
-            follow = UserRelation(user_id=self.id, target_id=target_id, type=0)
-            fans = UserRelation(user_id=target_id, target_id=self.id, type=1)
-            db.add_all([follow, fans])
-            db.commit()
-
-            #pdb.set_trace()
-            create_object_type(db, UserEvent, UserRelation, follow.id,
-                user_id=self.id, 
-                message=repr((
-                    u'关注了 ${ user } (ID: ${ id })',
-                    dict(user=tg.t_nickname, id=target_id),
-                )),
-            )
-            create_object_type(db, UserEvent, UserRelation, fans.id,
-                user_id=target_id, show=1,
-                message=repr((
-                    u'${ user } (ID: ${ id }) 关注了你',
-                    dict(user=self.user_profile.t_nickname, id=self.id),
-                )),
-            )
-            db.commit()
-        except:
-            db.rollback()
-            return False
-        finally:
-            db.close()
-        return True
-
     def reset_password(self, old, new):
         if self.password == hash_password(old, self.secret):
             self._set_password(new)
@@ -209,68 +158,19 @@ class UserBase(BaseModel):
                 user_id=self.id, message=msg,
             )
 
+    def attention_to(self, people_id):
+        ''' 是否跟随了某人
+        '''
+        pass
+
+    def followed_by(self, people_id):
+        ''' 是否被某人跟随了
+        '''
+        pass
+
     def get_friendtags(self, start=0, offset=10):
         return object_session(self).query(UserFriendtag)\
             .filter(UserFriendtag.user_id==self.id)[start:offset]
-
-    def get_follows(self, start=0, offset=10):
-        '''
-        return object_session(self).query(UserRelation, UserProfile)\
-            .join(UserProfile, UserRelation.target_id==UserProfile.user_id)\
-            .filter(and_(
-                UserRelation.user_id==self.id,
-                UserRelation.type==0,
-            )).order_by(UserRelation._created.desc())[start:offset]
-        '''
-        return object_session(self).query(UserProfile)\
-            .select_from(
-                outerjoin(UserRelation, UserProfile,
-                    UserRelation.target_id==UserProfile.user_id,
-                ),
-            ).filter(and_(
-                UserRelation.user_id==self.id,
-                UserRelation.type==0,
-            )).order_by(UserRelation._created.desc())[start:offset]
-
-    def get_fans(self, start=0, offset=10):
-        return object_session(self).query(UserRelation, UserProfile)\
-            .join(UserProfile, UserRelation.target_id==UserProfile.user_id)\
-            .filter(and_(
-                UserRelation.user_id==self.id,
-                UserRelation.type==1,
-            )).order_by(UserRelation._created.desc())[start:offset]
-
-    def get_events(self, table, show=None, start=0, offset=10):
-        app_label, model = table.split('_', 1)
-        sub = object_session(self).query(SiteModel)\
-            .filter(and_(
-                SiteModel.app_label==app_label,
-                SiteModel.model==model,
-            )).subquery('sub')
-        query = object_session(self).query(UserEvent)\
-            .filter(and_(
-                UserEvent.user_id==self.id,
-                UserEvent.object_type_id==sub.c.id,
-            ))
-        if show in (0, 1): query = query.filter(UserEvent.show==show)
-        return query.all()
-
-    def delete_follow(self, target_id):
-        map(lambda x: object_session(self).delete(x),
-            object_session(self).query(UserRelation)\
-                .filter(or_(
-                    and_(
-                        UserRelation.user_id==self.id,
-                        UserRelation.target_id==target_id,
-                        UserRelation.type==0,
-                    ),
-                    and_(
-                        UserRelation.user_id==target_id,
-                        UserRelation.target_id==self.id,
-                        UserRelation.type==1,
-                    ),
-                )).all()
-        )
 
     def init_session(self):
         return dict(id=self.id, email=self.email, username=self.username,\
@@ -305,20 +205,29 @@ class UserProfile(BaseModel):
             if self.nickname and len(self.nickname) > 0\
             else self.username
 
-class UserFriendtag(BaseModel): 
-    __table_name__ = user_friendtag.name
-
 class UserRelation(BaseModel): 
     __table_name__ = user_relation.name 
 
+class UserFriendtag(BaseModel): 
+    __table_name__ = user_friendtag.name
+
 class UserFriendsgroup(BaseModel): 
     __table_name__ = user_friendsgroup.name
+
+class UserMail(BaseModel):
+    __table_name__ = user_mail.name
+
+class UserMessage(BaseModel):
+    __table_name__ = user_message.name
 
 class UserAlbum(BaseModel): 
     __table_name__ = user_album.name
 
 class UserImage(BaseModel): 
     __table_name__ = user_image.name
+
+class UserGallery(BaseModel):
+    __table_name__ = user_gallery.name
 
 class UserEvent(BaseModel):
     ''' message: (str, dict)
@@ -337,27 +246,6 @@ class UserEvent(BaseModel):
     def set_message(self, msg, **kw):
         self.message = repr((msg, kw))
 
-class GameTaxonomy(BaseModel):
-    __table_name__ = game_taxonomy.name
-
-    def get_games(self, start=0, offset=0):
-        return object_session(self).query(GameDetail)\
-            .filter(GameDetail.category_id==self.id)[start:offset]
-
-class GamePlatform(BaseModel): 
-    __table_name__ = game_platform.name
-
-class GameDetail(AbstractTagModel, BaseModel): 
-    __table_name__ = game_detail.name
-
-class GameContent(BaseModel): 
-    __table_name__ = game_content.name
-
-class GameMark(BaseModel): 
-    __table_name__ = game_mark.name
-
-class GroupDetail(AbstractTagModel, BaseModel):
-    __table_name__ = group_detail.name
 
 class NewsCategory(BaseModel): 
     __table_name__ = news_category.name
@@ -375,6 +263,52 @@ class NewsDetail(BaseModel):
 
 class NewsContent(BaseModel): 
     __table_name__ = news_content.name
+
+
+class GameTaxonomy(BaseModel):
+    __table_name__ = game_taxonomy.name
+
+class GameDetail(AbstractTagModel, BaseModel): 
+    __table_name__ = game_detail.name
+
+class GameContent(BaseModel): 
+    __table_name__ = game_content.name
+
+# relation ship 
+class GameGenre(BaseModel):
+    __table_name__ = game_genre.name
+
+class GamePlatform(BaseModel): 
+    __table_name__ = game_platform.name
+
+class GameReview(BaseModel):
+    __table_name__ = game_review.name
+
+class GameMark(BaseModel): 
+    __table_name__ = game_mark.name
+
+class GameGuide(BaseModel):
+    __table_name__ = game_guide.name
+
+class GameImage(BaseModel):
+    __table_name__ = game_image.name
+
+
+class GroupApply(BaseModel):
+    __table_name__ = group_apply.name
+
+class GroupDetail(BaseModel):
+    __table_name__ = group_detail.name
+
+class GroupMember(BaseModel):
+    __table_name__ = group_member.name
+
+class GroupTopic(BaseModel):
+    __table_name__ = group_topic.name
+
+class GroupReply(BaseModel):
+    __table_name__ = group_reply.name
+
 
 class TagContent(BaseModel):
     __table_name__ = tag_content.name 
@@ -407,17 +341,20 @@ class TagMark(BaseModel):
 class SiteSeo(BaseModel):
     __table_name__ = site_seo.name
 
-class SiteComment(BaseModel):
-    __table_name__ = site_comment.name
-
 class SiteModel(BaseModel):
     __table_name__ = site_model.name
 
+    @hybrid_property
     def object_name(self):
-        return self.app_label.capitalize() + self.model.capitalize()
+        fmt_model = map(lambda s: s.capitalize(), self.model.split('_'))
+        return self.app_label.capitalize() + ''.join(fmt_model)
 
+    @hybrid_property
     def table_name(self):
         return '%s_%s' % (self.app_label, self.model)
+
+class SiteComment(BaseModel):
+    __table_name__ = site_comment.name
 
 mapper(UserBase, user_base, properties={
     'user_profile': relationship(UserProfile, uselist=False, backref='user_base'),
@@ -445,18 +382,39 @@ mapper(UserProfile, user_profile, properties={
         backref='user_profile', order_by=site_comment.c._created.desc(),
     ),
 })
-
+mapper(UserRelation, user_relation)
 mapper(UserFriendtag, user_friendtag, properties={
     'group_friends': relationship(UserProfile,
         secondary=user_friendsgroup, backref='user_friendtag',
     ),
 })
-mapper(UserRelation, user_relation)
 mapper(UserFriendsgroup, user_friendsgroup)
-
+mapper(UserMail, user_mail)
+mapper(UserMessage, user_message)
 mapper(UserAlbum, user_album)
 mapper(UserImage, user_image)
+mapper(UserGallery, user_gallery)
 mapper(UserEvent, user_event)
+
+
+mapper(NewsCategory, news_category, properties={
+    'news_details': relationship(NewsDetail, 
+        backref='news_category', order_by=news_detail.c.id,
+    ),
+})
+mapper(NewsDetail, news_detail, properties={
+    'news_content': relationship(NewsContent, 
+        uselist=False, backref='news_detail',
+    ),
+    'category': deferred(
+        select([news_category.c.name]).where(news_category.c.id==news_detail.c.category_id),
+    ),
+    'content': deferred(
+        select([news_content.c.content]).where(news_content.c.news_id==news_detail.c.id),
+    ),
+})
+mapper(NewsContent, news_content)
+
 
 mapper(GameTaxonomy, game_taxonomy, properties={
     'game_details': relationship(GameDetail, 
@@ -487,25 +445,6 @@ mapper(GameMark, game_mark)
 
 mapper(GroupDetail, group_detail)
 
-mapper(NewsCategory, news_category, properties={
-    'news_details': relationship(NewsDetail, 
-        backref='news_category', order_by=news_detail.c.id,
-    ),
-})
-
-mapper(NewsDetail, news_detail, properties={
-    'news_content': relationship(NewsContent, 
-        uselist=False, backref='news_detail',
-    ),
-    'category': deferred(
-        select([news_category.c.name]).where(news_category.c.id==news_detail.c.category_id),
-    ),
-    'content': deferred(
-        select([news_content.c.content]).where(news_content.c.news_id==news_detail.c.id),
-    ),
-})
-
-mapper(NewsContent, news_content)
 
 mapper(TagContent, tag_content, properties={
     'tag_marks': relationship(TagMark,

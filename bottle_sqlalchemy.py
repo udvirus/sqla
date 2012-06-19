@@ -1,10 +1,11 @@
 #!/usr/bin/python
 # coding: utf-8
-
-from bottle import HTTPError, PluginError
-from sqlalchemy.orm import sessionmaker, scoped_session
+from bottle import HTTPError,\
+                   PluginError
+from sqlalchemy.orm import sessionmaker,\
+                           scoped_session
 from sqlalchemy.exc import SQLAlchemyError
-from base import engine
+from . import engine
 
 class SQLAlchemyPlugin(object):
     name = 'sqlalchemy'
